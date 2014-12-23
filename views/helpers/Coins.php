@@ -46,35 +46,53 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
         $coins['rfr_id'] = 'info:sid/omeka.org:generator';
 
         // Set the Dublin Core elements that don't need special processing.
-        $elementNames = array('Creator', 'Subject', 'Publisher', 'Contributor',
+        $elementNames = array('Creator', 'Publisher', 'Contributor',
                               'Date', 'Format', 'Source', 'Language', 'Coverage',
-                              'Rights', 'Relation');
+                              'Rights', 'Relation','Subject');
         foreach ($elementNames as $elementName) {
-            $elementText = $this->_getElementText($item, $elementName);
-            if (false === $elementText) {
+            $elementTexts = $this->_getElementTexts($item, $elementName);
+            if (false === $elementTexts) {
                 continue;
             }
 
+            foreach($elementTexts as $elementText)
+            { 
             $elementName = strtolower($elementName);
-            $coins["rft.$elementName"] = $elementText;
+            $coins["rft.$elementName"][] = $elementText;
+            }
         }
 
-        // Set the title key from Dublin Core:title.
-        $title = $this->_getElementText($item, 'Title');
-        if (false === $title || '' == trim($title)) {
-            $title = '[unknown title]';
-        }
-        $coins['rft.title'] = $title;
+        // Handle multiple subjects
 
+              
+
+        // Set the title key from Dublin Core:title
+        $titles = $this->_getElementTexts($item, 'Title');
+        $itemTypeName = metadata($item, 'item_type_name');
+        if ($itemTypeName == 'Artikkeliviite' || $itemTypeName == 'Artikkeli') {
+            $subtitle = metadata($item, array('Item Type Metadata', 'Alanimeke'), array('no_filter' => true, 'no_escape' => true, 'snippet' => 500));
+        }
+
+        foreach ($titles as $title) {
+            if (false === $title) {
+                $title = '[unknown title]';
+            }
+            if ($subtitle) {
+                $coins['rft.title'][] = $title . ': ' . $subtitle;
+            } 
+            else {
+              $coins['rft.title'][] = $title;  
+            }
+        }
         // Set the description key from Dublin Core:description.
-        $description = $this->_getElementText($item, 'Description');
+        $description = $this->_getElementTexts($item, 'Description');
         if (false === $description) {
             return;
         }
         $coins['rft.description'] = $description;
 
         // Set the type key from item type, map to Zotero item types.
-        $itemTypeName = metadata($item, 'item type name');
+        $itemTypeName = metadata($item, 'item_type_name');
         switch ($itemTypeName) {
             case 'Oral History':
                 $type = 'interview';
@@ -89,11 +107,17 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
                 $type = 'email';
                 break;
             case 'Website':
+            case 'Linkki':
                 $type = 'webpage';
                 break;
             case 'Text':
             case 'Document':
+            case 'Kirje':
                 $type = 'document';
+                break;
+            case 'Artikkeliviite':
+            case 'Artikkeli':
+                $type = 'journalArticle';
                 break;
             default:
                 if ($itemTypeName) {
@@ -104,6 +128,45 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
         }
         $coins['rft.type'] = $type;
 
+        // Set the issue date key from Dublin Core:Date Issued.
+        $dates = $this->_getElementTexts($item, 'Date Issued');
+        
+        foreach ($dates as $date) {
+            $coins['rft.date'][] = $date;
+        }
+
+        // Process additional item-type based metadata
+
+        // Porstua Item Type Metadata
+
+        if ($itemTypeName == 'Artikkeliviite' || $itemTypeName == 'Artikkeli') {
+            
+            $ykl = metadata($item, array('Item Type Metadata', 'YKL'), array('no_filter' => true, 'no_escape' => true, 'snippet' => 500));
+            if($ykl) {
+                $coins["rft.subject"][] = 'YKL ' . $ykl;
+            }
+            
+            $pages = metadata($item, array('Item Type Metadata', 'Sivunumerot'), array('no_filter' => true, 'no_escape' => true, 'snippet' => 500));
+            if($pages) {
+              $coins["rft.pages"] = $pages;
+            }
+
+            $magazine = metadata($item, array('Item Type Metadata', 'Lehden nimi'), array('no_filter' => true, 'no_escape' => true, 'snippet' => 500));
+            if($magazine) {
+              $coins["rft.jtitle"] = $magazine;
+            }
+
+            $issue = metadata($item, array('Item Type Metadata', 'Lehden numero'), array('no_filter' => true, 'no_escape' => true, 'snippet' => 500));
+            if($issue) {
+              $coins["rft.issue"] = $issue;
+            }
+
+
+        }
+
+        
+
+
         // Set the identifier key as the absolute URL of the current page.
         $coins['rft.identifier'] = absolute_url();
 
@@ -111,7 +174,9 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
         $coinsSpan = '<span class="Z3988" title="';
         $coinsSpan .= html_escape(http_build_query($coins));
         $coinsSpan .= '"></span>';
+        $coinsSpan = preg_replace('/%5B[0-9]+%5D/simU', '', $coinsSpan);
         return $coinsSpan;
+        
     }
 
     /**
@@ -121,12 +186,12 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
      * @param string $elementName
      * @return string|bool
      */
-    protected function _getElementText(Item $item, $elementName)
+    protected function _getElementTexts(Item $item, $elementName)
     {
         $elementText = metadata(
             $item,
             array('Dublin Core', $elementName),
-            array('no_filter' => true, 'no_escape' => true, 'snippet' => 500)
+            array('no_filter' => true, 'no_escape' => true, 'snippet' => 500, 'all' =>true)
         );
         return $elementText;
     }

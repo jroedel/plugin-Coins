@@ -81,11 +81,11 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
                 $coins['rft.title'][] = $title . ': ' . $subtitle;
             } 
             else {
-              $coins['rft.title'][] = $title;  
+              $coins['rft.title'] .= $title;  
             }
         }
         // Set the description key from Dublin Core:description.
-        $description = $this->_getElementTexts($item, 'Description');
+        $description = $this->_getElementTexts($item, 'Description',false);
         if (false === $description) {
             return;
         }
@@ -123,7 +123,7 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
                 if ($itemTypeName) {
                     $type = $itemTypeName;
                 } else {
-                    $type = $this->_getElementText($item, 'Type');
+                    $type = $this->_getElementTexts($item, 'Type',false);
                 }
         }
         $coins['rft.type'] = $type;
@@ -184,15 +184,18 @@ class Coins_View_Helper_Coins extends Zend_View_Helper_Abstract
      *
      * @param Item $item
      * @param string $elementName
+     * @param bool $all
      * @return string|bool
      */
-    protected function _getElementTexts(Item $item, $elementName)
+    protected function _getElementTexts(Item $item, $elementName, $all = true)
     {
         $elementText = metadata(
             $item,
             array('Dublin Core', $elementName),
-            array('no_filter' => true, 'no_escape' => true, 'snippet' => 500, 'all' =>true)
+            array('no_filter' => true, 'no_escape' => true, 'snippet' => 500, 'all' =>$all)
         );
         return $elementText;
     }
+
+    
 }
